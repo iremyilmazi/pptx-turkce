@@ -70,12 +70,7 @@ Kaynak sunumun yanında `Sunum_tr.pptx` ve `Sunum_tr.atlananlar.csv` oluşturulu
 
 `lxml`, `torch`, `transformers` ve `sentencepiece` zaten aynı Python ortamında kuruluysa bu seçenek için paket yükleme adımını atla. Mevcut Argos çevirisi çalışıyorsa `sentencepiece` o ortamda kullanılabilir durumda demektir.
 
-1. [Helsinki-NLP model dosyaları](https://huggingface.co/Helsinki-NLP/opus-mt-tc-big-en-tr/tree/main) sayfasından şu dosyaları indir ve `opus-en-tr` klasörüne koy. Model ağırlığı yaklaşık 470 MB'dir. Model lisansı CC BY 4.0.
-   - `config.json`
-   - `generation_config.json`
-   - `pytorch_model.bin`
-   - `source.spm` ve `target.spm`
-   - `special_tokens_map.json`, `tokenizer_config.json` ve `vocab.json`
+1. [OPUS-MT ZIP paketini GitHub’dan indir (473 MB)](https://github.com/iremyilmazi/pptx-turkce/releases/download/opus-mt-en-tr/opus-en-tr.zip). ZIP’i aç ve içindeki `opus-en-tr` klasörünü `pptx_turkce.py` ile aynı klasöre koy. `opus-en-tr` klasörünün içinde `pytorch_model.bin` ve diğer model dosyaları doğrudan görünmeli. Modelin lisansı CC BY 4.0. [Özgün model ve atıf bilgileri](https://huggingface.co/Helsinki-NLP/opus-mt-tc-big-en-tr)
 2. Betiğin bulunduğu klasörden aşağıdaki komutu çalıştır. Buradaki `python` kurulu şirket ortamını kullanır. Kendi sanal ortamında gerekli paketler varsa onun Python yolunu kullanabilirsin.
 
 ```cmd
