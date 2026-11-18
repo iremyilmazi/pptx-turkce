@@ -1,0 +1,5 @@
+Model: opus-mt-tc-big-en-tr
+Yayımcı: Helsinki-NLP / OPUS-MT
+Kaynak: https://huggingface.co/Helsinki-NLP/opus-mt-tc-big-en-tr
+Lisans: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/
+Model dosyaları değiştirilmedi.
