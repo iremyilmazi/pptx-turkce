@@ -70,7 +70,7 @@ Kaynak sunumun yanında `Sunum_tr.pptx` ve `Sunum_tr.atlananlar.csv` oluşturulu
 
 `lxml`, `torch`, `transformers` ve `sentencepiece` zaten aynı Python ortamında kuruluysa bu seçenek için paket yükleme adımını atla. Mevcut Argos çevirisi çalışıyorsa `sentencepiece` o ortamda kullanılabilir durumda demektir.
 
-1. [Depodaki `opus-en-tr` klasöründen](https://github.com/iremyilmazi/pptx-turkce/tree/main/opus-en-tr) yedi model yapılandırma ve tokenizer dosyasını tek tek indir. Bunları betiğin yanındaki `opus-en-tr` klasörüne koy. Aynı klasöre `pytorch_model.bin` ağırlık dosyası da gerekir. Bu dosya GitHub’ın normal dosya sınırını aştığı için proje klasöründe henüz bulunmuyor. [Özgün model ve atıf bilgileri](https://huggingface.co/Helsinki-NLP/opus-mt-tc-big-en-tr)
+1. [Depodaki `opus-en-tr` klasöründen](https://github.com/iremyilmazi/pptx-turkce/tree/main/opus-en-tr) yedi model yapılandırma ve tokenizer dosyasını tek tek indir. Bunları betiğin yanındaki `opus-en-tr` klasörüne koy. [pytorch_model.bin ağırlık dosyasını GitHub Releases’tan indir (470 MB)](https://github.com/iremyilmazi/pptx-turkce/releases/download/opus-mt-en-tr/pytorch_model.bin) ve aynı klasöre koy. Sekiz model dosyası doğrudan `opus-en-tr` içinde görünmeli. [Özgün model ve atıf bilgileri](https://huggingface.co/Helsinki-NLP/opus-mt-tc-big-en-tr)
 2. Betiğin bulunduğu klasörden aşağıdaki komutu çalıştır. Buradaki `python` kurulu şirket ortamını kullanır. Kendi sanal ortamında gerekli paketler varsa onun Python yolunu kullanabilirsin.
 
 ```cmd
