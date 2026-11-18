@@ -6,7 +6,7 @@ Windows'ta bir PowerPoint sunumundaki düzenlenebilir İngilizce metni yerel bir
 
 - Windows ve 64 bit CPython. Paket uyumluluğu için Python 3.12 ile başlayabilirsin.
 - [pptx_turkce.py](pptx_turkce.py)
-- [Argos İngilizce → Türkçe model paketi](https://argos-net.com/v1/translate-en_tr-1_5.argosmodel)
+- [Argos İngilizce → Türkçe model paketi](https://github.com/iremyilmazi/pptx-turkce/releases/download/argos-en-tr-1.5/translate-en_tr-1_5.argosmodel)
 - Python paketleri `lxml`, `ctranslate2` ve `sentencepiece`
 
 İnternet, Python paketlerinin ve modelin ilk indirmesi için gerekir. Çeviri yerel CPU'da çalışır. PowerPoint yalnızca sonucu açıp kontrol etmek için gerekir.
@@ -15,10 +15,10 @@ Windows'ta bir PowerPoint sunumundaki düzenlenebilir İngilizce metni yerel bir
 
 Örneğin Belgeler altında `pptx-turkce` adlı bir klasör oluştur. Betiği ve model paketini bu klasöre koy. Modelin `.argosmodel` uzantısını koru ve paketi açmadan bırak.
 
-PowerShell'i aç ve klasöre geç.
+Komut İstemi'ni (CMD) aç ve klasöre geç. Klasör farklı bir konumdaysa aşağıdaki yolu değiştir. `cd /d` gerekirse sürücüyü de değiştirir.
 
-```powershell
-Set-Location "$env:USERPROFILE\Documents\pptx-turkce"
+```cmd
+cd /d "%USERPROFILE%\Documents\pptx-turkce"
 python --version
 python -c "import struct; print(struct.calcsize('P') * 8)"
 ```
@@ -27,9 +27,9 @@ Son komutun `64` yazması gerekir. `python` komutu bulunamaz ama `py -3.12 --ver
 
 ## 2. Python paketlerini yükle
 
-Proje klasöründe bir sanal ortam oluştur. Komutlar sanal ortamın Python dosyasını doğrudan çağırır, böylece PowerShell aktivasyonu gerekmez.
+Proje klasöründe bir sanal ortam oluştur. Komutlar sanal ortamın Python dosyasını doğrudan çağırır, böylece sanal ortamı etkinleştirmene gerek kalmaz.
 
-```powershell
+```cmd
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install lxml ctranslate2 sentencepiece
 .\.venv\Scripts\python.exe -c "import lxml.etree, ctranslate2, sentencepiece; print('Paketler hazır')"
@@ -39,13 +39,13 @@ python -m venv .venv
 
 İnternet erişimi olan, aynı Windows mimarisine ve Python sürümüne sahip bir bilgisayarda paketleri indir.
 
-```powershell
+```cmd
 python -m pip download --only-binary=:all: --dest .\wheels lxml ctranslate2 sentencepiece
 ```
 
 `wheels` klasörünü, betiği ve model paketini kurumun izin verdiği yöntemle şirket bilgisayarına aktar. Sunum şirket bilgisayarında kalabilir. Orada proje klasöründen şu komutları çalıştır.
 
-```powershell
+```cmd
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --no-index --find-links .\wheels lxml ctranslate2 sentencepiece
 ```
@@ -54,13 +54,13 @@ python -m venv .venv
 
 Önce sunumu PowerPoint'te kaydet. Aşağıdaki örnek yolu kendi dosyanın yoluyla değiştir. Yol boşluk içeriyorsa tırnakları koru.
 
-```powershell
+```cmd
 .\.venv\Scripts\python.exe .\pptx_turkce.py "C:\Dosyalar\Sunum.pptx" --model ".\translate-en_tr-1_5.argosmodel"
 ```
 
 Kaynak sunumun yanında `Sunum_tr.pptx` ve `Sunum_tr.atlananlar.csv` oluşturulur. Başka bir klasöre yazmak için zaten var olan bir klasörde yeni bir dosya adı belirt.
 
-```powershell
+```cmd
 .\.venv\Scripts\python.exe .\pptx_turkce.py "C:\Dosyalar\Sunum.pptx" --model ".\translate-en_tr-1_5.argosmodel" --cikti "C:\Dosyalar\Sunum_Turkce_v2.pptx"
 ```
 
@@ -79,13 +79,13 @@ Kaynak sunumun yanında `Sunum_tr.pptx` ve `Sunum_tr.atlananlar.csv` oluşturulu
 | `No matching distribution found` | Python sürümünü ve 64 bit mimariyi kontrol et. Çevrimdışı kurulumda wheel dosyalarının hedef Python ve Windows mimarisiyle eşleştiğinden emin ol. |
 | `ModuleNotFoundError` | Paketleri betiği çalıştırdığın Python ile yükle. Yukarıdaki `.venv\Scripts\python.exe` yolunu kullan. |
 | `DLL load failed` | 64 bit Python kullandığını kontrol et. Kurum BT ekibinden CTranslate2 için gerekli Microsoft Visual C++ çalışma zamanını doğrulamasını iste. |
-| Model dosyası bulunamıyor | PowerShell'in doğru klasörde olduğunu ve dosyanın gerçek adının `.argosmodel` ile bittiğini kontrol et. Gerekirse modelin tam yolunu yaz. |
+| Model dosyası bulunamıyor | CMD'nin doğru klasörde olduğunu ve dosyanın gerçek adının `.argosmodel` ile bittiğini kontrol et. Gerekirse modelin tam yolunu yaz. |
 | Model başlangıç kontrolü başarısız | Model dosyasının tam indirildiğini, belirtilen İngilizce → Türkçe paketi olduğunu ve Python bağımlılıklarının yüklenebildiğini kontrol et. |
 | Çıktı veya rapor yolu kullanımda | `--cikti` ile yeni bir dosya adı seç. Betik kaynak sunumu ve mevcut çıktıları korur. |
 | `PermissionError` | Çıktı klasöründe yazma iznini kontrol et. Gerekirse `--cikti` ile yazabildiğin bir klasör seç. |
 
 Komut seçeneklerini görmek için şu komutu çalıştır.
 
-```powershell
+```cmd
 .\.venv\Scripts\python.exe .\pptx_turkce.py --help
 ```
