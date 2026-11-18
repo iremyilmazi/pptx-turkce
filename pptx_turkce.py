@@ -84,6 +84,107 @@ class LocalTranslator:
         return self.tokenizer.decode_pieces(result).strip()
 
 
+class OpusTranslator:
+    def __init__(self, directory):
+        import torch
+        from transformers import AutoModelForSeq2SeqLM, MarianTokenizer
+
+        directory = directory.resolve(strict=True)
+        for name in ("config.json", "source.spm", "target.spm", "vocab.json", "pytorch_model.bin"):
+            if not (directory / name).is_file():
+                raise FileNotFoundError(f"OPUS-MT dosyası eksik: {name}")
+        self.torch = torch
+        self.tokenizer = MarianTokenizer.from_pretrained(str(directory), local_files_only=True)
+        self.engine = AutoModelForSeq2SeqLM.from_pretrained(
+            str(directory), local_files_only=True, trust_remote_code=False,
+            weights_only=True, dtype=torch.float32,
+        ).eval()
+
+    def __call__(self, source):
+        inputs = self.tokenizer(source, return_tensors="pt", truncation=False)
+        limit = min(400, getattr(self.engine.config, "max_position_embeddings", 512))
+        if inputs["input_ids"].shape[-1] > limit:
+            raise ValueError("Metin model için fazla uzun.")
+        with self.torch.inference_mode():
+            tokens = self.engine.generate(**inputs, num_beams=4, max_new_tokens=limit)[0]
+        if len(tokens) > limit or self.tokenizer.unk_token_id in tokens.tolist():
+            raise ValueError("Model sonucu eksik veya bilinmeyen sözcük içeriyor.")
+        return self.tokenizer.decode(tokens, skip_special_tokens=True).strip()
+
+
+class Glossary:
+    def __init__(self, path):
+        self.terms = {}
+        if path is None:
+            return
+        with path.open(encoding="utf-8-sig", newline="") as stream:
+            for line, row in enumerate(csv.reader(stream, delimiter=";"), 1):
+                if line == 1 and row == ["ingilizce", "turkce"]:
+                    continue
+                if not row:
+                    continue
+                if len(row) != 2 or not all(value.strip() for value in row):
+                    raise ValueError(f"Terim sözlüğünde geçersiz satır: {line}")
+                source, target = (value.strip() for value in row)
+                key = source.casefold()
+                if key in self.terms:
+                    raise ValueError(f"Terim sözlüğünde yinelenen satır: {line}")
+                self.terms[key] = target
+
+    def exact(self, source):
+        return self.terms.get(source.casefold())
+
+    def accepts(self, source, target):
+        source = source.casefold()
+        target = target.casefold()
+        for term, approved in self.terms.items():
+            match = re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", source)
+            if match and not re.search(r"(?<!\w)" + re.escape(approved.casefold()), target):
+                return False
+        return True
+
+
+def set_translated_text(groups, target, translate, glossary):
+    # Anchor non-default formatting to a uniquely matching translated phrase.
+    # Keep the original run properties and only update text after alignment.
+    if len(groups) == 1:
+        fragments = [target]
+    else:
+        if len(groups) > 9:
+            return False
+        default_style = max(groups, key=lambda group: len(group[2]))[0]
+        pattern = []
+        for style, _, source in groups:
+            if style == default_style:
+                pattern.append(r"(.+?)")
+                continue
+            phrase = glossary.exact(source.strip()) or translate(source.strip())
+            if not phrase or (check_translation(source.strip(), phrase)
+                              and source.strip().casefold() != phrase.casefold()):
+                return False
+            anchor = r"(?<!\w)" + re.escape(phrase.strip()) + r"(?!\w)"
+            if len(re.findall(anchor, target, re.I)) != 1:
+                return False
+            pattern.append("(" + anchor + ")")
+        # Source spans must keep their order, with no loss of emphasis.
+        match = re.fullmatch("".join(pattern), target, re.I)
+        if not match:
+            return False
+        fragments = match.groups()
+
+    for (_, nodes, original), fragment in zip(groups, fragments):
+        leading = original[:len(original) - len(original.lstrip())]
+        trailing = original[len(original.rstrip()):]
+        if len(groups) > 1:
+            # Spacing at internal style boundaries comes from the model output.
+            leading = leading if nodes is groups[0][1] else ""
+            trailing = trailing if nodes is groups[-1][1] else ""
+        for node in nodes:
+            node.text = ""
+        nodes[0].text = leading + fragment + trailing
+    return True
+
+
 def check_translation(source, target):
     if not target or source.casefold() == target.casefold():
         return "Boş veya kaynakla aynı sonuç"
@@ -101,14 +202,15 @@ def check_translation(source, target):
     return None
 
 
-def translate_paragraph(paragraph, translate):
+def translate_paragraph(paragraph, translate, glossary):
     runs = paragraph.findall(A + "r")
     nodes = [run.find(A + "t") for run in runs]
     nodes = [node for node in nodes if node is not None]
     source = "".join(node.text or "" for node in nodes).strip()
     if not source:
         return False, None
-    if not ASCII_WORD.search(source) or re.fullmatch(r"[A-Z0-9_-]{2,3}", source):
+    approved = glossary.exact(source)
+    if not approved and (not ASCII_WORD.search(source) or re.fullmatch(r"[A-Z0-9_-]{2,3}", source)):
         return False, "Sayı, kısa kısaltma veya çevrilebilir sözcük yok"
     if PROTECTED.search(source):
         return False, "Bağlantı, e-posta, dosya yolu veya yer tutucu içeriyor"
@@ -117,35 +219,47 @@ def translate_paragraph(paragraph, translate):
     if any(ch in source for ch in "\n\r\t"):
         return False, "Gömülü satır sonu veya sekme içeriyor"
 
-    styles = set()
+    groups = []
     for node in nodes:
-        if node.text:
-            props = node.getparent().find(A + "rPr")
-            styles.add(etree.tostring(props, with_tail=False) if props is not None else b"")
-    if len(styles) > 1:
-        return False, "Paragraf içinde farklı karakter biçimleri var"
+        if not node.text:
+            continue
+        props = node.getparent().find(A + "rPr")
+        style = etree.tostring(props, with_tail=False) if props is not None else b""
+        if groups and groups[-1][0] == style:
+            groups[-1][1].append(node)
+        else:
+            groups.append((style, [node]))
+    groups = [(style, items, "".join(node.text for node in items)) for style, items in groups]
 
     try:
-        target = translate(source)
+        target = approved or translate(source)
+        if approved:
+            reason = None if target == source else check_translation(source, target)
+            # Explicitly approved wording can change case, length and abbreviations.
+            if reason in {"Boş veya kaynakla aynı sonuç", "Kısaltma değişti veya kayboldu",
+                          "Çeviri uzunluğu olağan aralığın dışında"}:
+                reason = None
+            if Counter(NUMBER.findall(source)) != Counter(NUMBER.findall(target)):
+                reason = "Sayı veya sayısal gösterim değişti"
+        else:
+            reason = check_translation(source, target)
+            if not reason and not glossary.accepts(source, target):
+                reason = "Çeviri terim sözlüğüyle uyuşmadı"
+        if reason:
+            return False, reason
+        if target == source:
+            return False, None
+        if not set_translated_text(groups, target, translate, glossary):
+            return False, "Karma karakter biçimleri çeviride güvenle eşleştirilemedi"
     except ValueError:
         return False, "Model sonucu kullanılamadı veya metin fazla uzun"
     except Exception as error:
         return False, f"Çeviri hatası ({type(error).__name__})"
-    reason = check_translation(source, target)
-    if reason:
-        return False, reason
-
-    original = "".join(node.text or "" for node in nodes)
-    first = next(node for node in nodes if node.text)
-    for node in nodes:
-        node.text = ""
-    leading = original[:len(original) - len(original.lstrip())]
-    trailing = original[len(original.rstrip()):]
-    first.text = leading + target + trailing
     return True, None
 
 
-def translate_deck(source, destination, translate):
+def translate_deck(source, destination, translate, glossary=None):
+    glossary = glossary or Glossary(None)
     rows = []
     updated = 0
     parser = etree.XMLParser(resolve_entities=False, no_network=True, remove_blank_text=False)
@@ -170,7 +284,7 @@ def translate_deck(source, destination, translate):
                         shape = next(paragraph.iterancestors(P + "sp"), None)
                         if shape is not None and shape.find(".//" + P + "ph") is not None:
                             continue
-                    success, reason = translate_paragraph(paragraph, translate)
+                    success, reason = translate_paragraph(paragraph, translate, glossary)
                     if reason:
                         rows.append((name, index, reason))
                     if success:
@@ -195,7 +309,10 @@ def translate_deck(source, destination, translate):
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument("sunum", type=Path, help="Kaynak PPTX dosyası")
-    cli.add_argument("--model", type=Path, required=True, help="Yerel İngilizce → Türkçe .argosmodel")
+    models = cli.add_mutually_exclusive_group(required=True)
+    models.add_argument("--model", type=Path, help="Yerel İngilizce → Türkçe .argosmodel")
+    models.add_argument("--opus-model", type=Path, help="Yerel Helsinki-NLP OPUS-MT model klasörü")
+    cli.add_argument("--sozluk", type=Path, help="İngilizce ve Türkçe sütunlu yerel CSV")
     cli.add_argument("--cikti", type=Path, help="Çıktı PPTX yolu. Varsayılan: kaynak_adı_tr.pptx")
     args = cli.parse_args()
     source = args.sunum.resolve()
@@ -208,14 +325,16 @@ def main():
 
     sys.addaudithook(block_network)
     try:
+        glossary = Glossary(args.sozluk)
         with TemporaryDirectory(prefix="pptx_model_") as model_dir:
-            engine = LocalTranslator(args.model, model_dir)
+            engine = (OpusTranslator(args.opus_model) if args.opus_model
+                      else LocalTranslator(args.model, model_dir))
             if check_translation("This is a test.", engine("This is a test.")):
                 raise RuntimeError("Yerel model başlangıç kontrolünü geçemedi.")
 
             with TemporaryDirectory(prefix=".pptx_tr_", dir=target.parent) as staging:
                 staged_pptx = Path(staging) / "output.pptx"
-                count, rows = translate_deck(source, staged_pptx, lru_cache(2048)(engine))
+                count, rows = translate_deck(source, staged_pptx, lru_cache(2048)(engine), glossary)
                 with ZipFile(staged_pptx) as archive:
                     if archive.testzip() is not None:
                         raise ValueError("Oluşturulan PPTX arşivi doğrulanamadı.")
@@ -231,7 +350,7 @@ def main():
                 except OSError:
                     report.unlink()
                     raise
-    except (BadZipFile, KeyError, OSError, RuntimeError, ValueError, etree.XMLSyntaxError) as error:
+    except (BadZipFile, ImportError, KeyError, OSError, RuntimeError, ValueError, etree.XMLSyntaxError) as error:
         cli.exit(1, f"İşlem tamamlanamadı ({type(error).__name__}). {error}\n")
 
     print(f"Güncellenen paragraf: {count}")
