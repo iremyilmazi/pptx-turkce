@@ -64,12 +64,51 @@ Kaynak sunumun yanında `Sunum_tr.pptx` ve `Sunum_tr.atlananlar.csv` oluşturulu
 .\.venv\Scripts\python.exe .\pptx_turkce.py "C:\Dosyalar\Sunum.pptx" --model ".\translate-en_tr-1_5.argosmodel" --cikti "C:\Dosyalar\Sunum_Turkce_v2.pptx"
 ```
 
+## Alternatif yerel model ve terim sözlüğü
+
+### OPUS-MT ile karşılaştır
+
+`lxml`, `torch`, `transformers` ve `sentencepiece` zaten aynı Python ortamında kuruluysa bu seçenek için paket yükleme adımını atla. Mevcut Argos çevirisi çalışıyorsa `sentencepiece` o ortamda kullanılabilir durumda demektir.
+
+1. [Helsinki-NLP model dosyaları](https://huggingface.co/Helsinki-NLP/opus-mt-tc-big-en-tr/tree/main) sayfasından şu dosyaları indir ve `opus-en-tr` klasörüne koy. Model ağırlığı yaklaşık 470 MB'dir. Model lisansı CC BY 4.0.
+   - `config.json`
+   - `generation_config.json`
+   - `pytorch_model.bin`
+   - `source.spm` ve `target.spm`
+   - `special_tokens_map.json`, `tokenizer_config.json` ve `vocab.json`
+2. Betiğin bulunduğu klasörden aşağıdaki komutu çalıştır. Buradaki `python` kurulu şirket ortamını kullanır. Kendi sanal ortamında gerekli paketler varsa onun Python yolunu kullanabilirsin.
+
+```cmd
+python pptx_turkce.py "C:\Dosyalar\Sunum.pptx" --opus-model ".\opus-en-tr" --cikti "C:\Dosyalar\Sunum_opus.pptx"
+```
+
+İndirme adımı internet gerektirir. Çeviri sırasında betik yalnızca yerel model dosyalarını kullanır. Argos ve OPUS-MT çıktılarını birkaç başlık, tablo hücresi ve iş cümlesi üzerinde karşılaştır.
+
+### Kurum terimlerini tanımla
+
+`sozluk.csv` dosyasını UTF-8 olarak kaydet. Noktalı virgülle ayrılmış iki sütun kullan.
+
+```csv
+ingilizce;turkce
+Outstanding balance;Ödenmemiş bakiye
+Risk Management;Risk Yönetimi
+KPI;KPI
+```
+
+İngilizce paragraf sözlükteki bir satırla tamamen eşleşirse Türkçe karşılığı doğrudan kullanılır. Terim daha uzun bir paragrafta geçerse betik onaylı karşılığın çeviride bulunup bulunmadığını kontrol eder. Uyuşmazlıkta kaynak paragrafı korur ve CSV'ye yazar. Böyle bir paragraf için sözlüğe onaylı tam cümleyi de ekleyebilirsin.
+
+```cmd
+python pptx_turkce.py "C:\Dosyalar\Sunum.pptx" --opus-model ".\opus-en-tr" --sozluk ".\sozluk.csv" --cikti "C:\Dosyalar\Sunum_opus_sozluk.pptx"
+```
+
+`--sozluk` seçeneği Argos ile de kullanılabilir.
+
 ## 4. Sonucu kontrol et
 
 - Çıktıyı PowerPoint'te aç. Türkçe metnin uzadığı başlıkları ve dar kutuları gözden geçir. Metin kutusunun yeri ve boyutu korunurken satır kayması veya taşma olabilir.
 - CSV raporunu Excel'de aç. Alanlar noktalı virgülle ayrılır. Rapor kaynak metnin kendisi yerine PPTX içindeki XML parçasını, paragraf sırasını ve atlama nedenini gösterir. `slideN.xml` paket içindeki dosya adıdır ve PowerPoint'teki güncel slayt sırasından farklı olabilir.
 - Sayı değişikliği, kaybolan kısaltma, boş sonuç, olağandışı uzunluk veya model hatası tespit edildiğinde kaynak metin korunur. Bu filtreler anlam doğruluğunu garanti etmez. Terimleri ve kritik ifadeleri gözden geçir.
-- Farklı karakter biçimlerini bir arada kullanan paragraflar, dinamik alanlar ve elle satır sonu verilen paragraflar atlanabilir. Görsel içi yazılar, SmartArt, konuşmacı notları ve veri kaynağına bağlı grafik etiketleri kapsam dışındadır.
+- Karma biçimli bir paragrafın vurgulu parçaları Türkçe sonuçta güvenle eşleşirse biçimleri korunarak güncellenir. Eşleşme belirsizse, dinamik alan varsa veya elle satır sonu verilmişse paragraf atlanır. Görsel içi yazılar, SmartArt, konuşmacı notları ve veri kaynağına bağlı grafik etiketleri kapsam dışındadır.
 
 ## Sorun giderme
 
