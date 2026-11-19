@@ -11,6 +11,59 @@ Windows'ta bir PowerPoint sunumundaki düzenlenebilir İngilizce metni yerel bir
 
 İnternet, Python paketlerinin ve modelin ilk indirmesi için gerekir. Çeviri yerel CPU'da çalışır. PowerPoint yalnızca sonucu açıp kontrol etmek için gerekir.
 
+## Hızlı kullanım (sanal ortam olmadan)
+
+Python ve gerekli paketler bilgisayarında kuruluysa `.venv` oluşturmak zorunda değilsin. Komut İstemi'nde (CMD) proje klasörüne geç:
+
+```cmd
+cd /d "%USERPROFILE%\Documents\pptx-turkce"
+python --version
+```
+
+Aşağıdaki komutla Argos için gereken paketleri kontrol et:
+
+```cmd
+python -c "import lxml, ctranslate2, sentencepiece; print('Hazir')"
+```
+
+Eksik paket varsa (kurum bilgisayarındaki kurulum izinlerine bağlı olarak):
+
+```cmd
+python -m pip install lxml ctranslate2 sentencepiece
+```
+
+### Argos ile çeviri
+
+`translate-en_tr-1_5.argosmodel` dosyasını proje klasörüne koy ve kaynak PPTX yolunu değiştirerek çalıştır:
+
+```cmd
+python pptx_turkce.py "C:\Dosyalar\Sunum.pptx" --model ".\translate-en_tr-1_5.argosmodel"
+```
+
+### OPUS-MT ile çeviri
+
+`opus-en-tr` klasörünün içinde model dosyaları (özellikle `pytorch_model.bin`) bulunmalı. Gereken Python paketleri: `lxml`, `torch`, `transformers`, `sentencepiece`. Önce bunların kurulu olduğunu kontrol et:
+
+```cmd
+python -c "import lxml, torch, transformers, sentencepiece; print('Hazir')"
+```
+
+Eksikler varsa:
+
+```cmd
+python -m pip install lxml torch transformers sentencepiece
+```
+
+Ardından:
+
+```cmd
+python pptx_turkce.py "C:\Dosyalar\Sunum.pptx" --opus-model ".\opus-en-tr"
+```
+
+Her iki yöntemde de kaynak dosyanın yanında `Sunum_tr.pptx` ve `Sunum_tr.atlananlar.csv` oluşturulur. Çıktı zaten varsa `--cikti` ile farklı bir ad belirt. Varsayılan olarak çeviri sırasında internet erişimi kullanılmaz; ilk model ve paket indirmeleri için internet gerekebilir.
+
+> **Not:** Sanal ortam zorunlu değil, ancak kütüphane sürümü çakışmalarını önlemek için önerilir. Şirket bilgisayarında paket yüklemeden önce kurum BT politikalarını kontrol et.
+
 ## 1. Dosyaları hazırla
 
 Örneğin Belgeler altında `pptx-turkce` adlı bir klasör oluştur. Betiği ve model paketini bu klasöre koy. Modelin `.argosmodel` uzantısını koru ve paketi açmadan bırak.
